@@ -1,0 +1,42 @@
+# OS / Editor
+.DS_Store
+.idea/
+.vscode/
+
+# Python bytecode / cache
+__pycache__/
+*.py[cod]
+*$py.class
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+
+# Virtual envs
+.venv/
+venv/
+env/
+
+# Builds / dists
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Coverage / reports
+.coverage*
+coverage/
+htmlcov/
+
+# Notebooks
+.ipynb_checkpoints/
+
+# Env / secrets
+.env
+.env.*
+
+# Logs
+logs/
+*.log
+
+# Local large data artifacts
+data-khanoomi.rar
