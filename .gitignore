@@ -1,42 +1,25 @@
-# OS / Editor
-.DS_Store
-.idea/
-.vscode/
-
-# Python bytecode / cache
+# Python
 __pycache__/
 *.py[cod]
-*$py.class
-.mypy_cache/
-.pytest_cache/
-.ruff_cache/
+*.pyo
+*.pyd
+*.so
 
-# Virtual envs
+# Virtual env
 .venv/
-venv/
 env/
+venv/
 
-# Builds / dists
-build/
-dist/
-*.egg-info/
-.eggs/
-
-# Coverage / reports
-.coverage*
-coverage/
-htmlcov/
-
-# Notebooks
+# Jupyter
 .ipynb_checkpoints/
 
-# Env / secrets
+# OS
+.DS_Store
+
+# Env / Secrets
 .env
 .env.*
+!.env.example
 
-# Logs
-logs/
-*.log
-
-# Local large data artifacts
-data-khanoomi.rar
+# Data (adjust if needed)
+*.xlsx
