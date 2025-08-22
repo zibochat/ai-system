@@ -13,15 +13,33 @@ load_dotenv(env_file, override=True)
 
 API_KEY = os.getenv("OPENAI_API_KEY")
 BASE_URL = os.getenv("OPENAI_BASE_URL")
+TEAM_ID = os.getenv("LIARA_TEAM_ID") or os.getenv("TEAM_ID") or os.getenv("LIARA_TEAM")
 MODEL = os.getenv("OPENAI_MODEL", "openai/gpt-4o-mini")
 
 if not API_KEY:
     raise RuntimeError("OPENAI_API_KEY not loaded. Ensure it exists in .env or environment variables.")
 
+def _debug_check_models(client):
+    try:
+        models = client.models.list()
+        names = [m.id for m in models.data][:20]
+        print("[DEBUG] Models available:", names)
+    except Exception as e:
+        print("[DEBUG] list models failed:", repr(e))
+
+extra_headers = {}
+if TEAM_ID:
+    extra_headers["x-teamid"] = TEAM_ID
+
 client = OpenAI(
     api_key=API_KEY,
-    base_url=BASE_URL
+    base_url=BASE_URL.rstrip("/") if BASE_URL else None,
+    default_headers=extra_headers if extra_headers else None
 )
+
+# Run the check once when module loads (can be disabled by env flag)
+if os.getenv("DEBUG_AI", "0") == "1":
+    _debug_check_models(client)
 
 # --- Load data ---
 def load_data():
@@ -60,43 +78,107 @@ def summarize_comments(product_id, comments):
     نظرات:
     {joined}
     """
-    resp = client.chat.completions.create(
-        model=MODEL,
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.2
-    )
-    return resp.choices[0].message.content.strip()
+    try:
+        model_to_use = MODEL
+        if os.getenv("DEBUG_AI", "0") == "1":
+            print(f"[DEBUG] summarize using model: {model_to_use} base_url={BASE_URL} team={TEAM_ID}")
+        resp = client.chat.completions.create(
+            model=model_to_use,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.2
+        )
+        return resp.choices[0].message.content.strip()
+    except Exception as e:
+        # Provide clearer guidance for 404 workspace/model issues
+        msg = str(e)
+        hints = []
+        if "404" in msg or "workspace" in msg.lower():
+            hints.append("بررسی کن Base URL دقیقاً همان مقدار مستند لیارا باشد (با workspace id).")
+            hints.append("هدر x-teamid باید ست شود (الان: %s)." % (TEAM_ID or "None"))
+        if "model" in msg.lower():
+            hints.append("لیست مدل‌ها را با فعال کردن DEBUG_AI=1 ببین.")
+        raise RuntimeError("خطا در summarize_comments: " + msg + "\nراهنما: " + " | ".join(hints)) from e
 
 # --- Recommend routine ---
-def recommend(profile, user_message):
+def recommend(profile, user_message, max_count=5):
     products, comments = load_data()
-    candidates = products[:3]  # برای تست، فقط ۳ محصول اول
+
+    # --- جدا کردن محصولات با کامنت و بدون کامنت ---
+    products_with_comments = [p for p in products if any(c["product_id"] == str(p["id"]) for c in comments)]
+    products_without_comments = [p for p in products if p not in products_with_comments]
+
+    # --- انتخاب کاندیدها با اولویت محصولات با کامنت ---
+    candidates = products_with_comments[:max_count]
+    if len(candidates) < max_count:
+        remaining = max_count - len(candidates)
+        candidates += products_without_comments[:remaining]
 
     summaries = []
-    for p in candidates:
-        s = summarize_comments(p["id"], comments)
-        summaries.append({"id": p["id"], "name": p["nameFa"], "summary": s})
+    fallback_to_profile = False
 
-    prompt = f"""
-    پروفایل کاربر:
-    {json.dumps(profile, ensure_ascii=False)}
+    if candidates:
+        for p in candidates:
+            related_comments = [c for c in comments if c["product_id"] == str(p["id"])]
+            if related_comments:
+                s = summarize_comments(p["id"], comments)
+            else:
+                # اگر کامنت نبود، خلاصه‌ای کوتاه از محصول بساز (مثلاً نام + نوع محصول)
+                s = f"محصول بدون نظر ثبت شده، نام: {p.get('nameFa', p.get('nameEn',''))}"
+            summaries.append({"id": p["id"], "name": p["nameFa"], "summary": s})
+    else:
+        fallback_to_profile = True
 
-    پیام کاربر:
-    {user_message}
+    # --- آماده کردن پرامپت ---
+    if summaries:
+        prompt = f"""
+پروفایل کاربر:
+{json.dumps(profile, ensure_ascii=False)}
 
-    محصولات کاندید:
-    {json.dumps(summaries, ensure_ascii=False)}
+پیام کاربر:
+{user_message}
 
-    -----
-    لطفاً یک روتین پوستی پیشنهاد بده و از همین محصولات انتخاب کن.
-    توضیح بده چرا این محصولات مناسب‌اند.
-    """
-    resp = client.chat.completions.create(
-        model=MODEL,
-        messages=[
-            {"role": "system", "content": "تو یک مشاور حرفه‌ای پوست هستی."},
-            {"role": "user", "content": prompt}
-        ],
-        temperature=0.5
-    )
-    return resp.choices[0].message.content.strip()
+محصولات کاندید:
+{json.dumps(summaries, ensure_ascii=False)}
+
+توجه: محصولاتی که دارای نظرات واقعی هستند اولویت دارند و خلاصه نظراتشان ارائه شده است.
+محصولاتی بدون نظر فقط به عنوان جایگزین در نظر گرفته شوند.
+لطفاً محصولات مناسب برای کاربر را انتخاب کن و دلیل انتخاب را توضیح بده.
+"""
+    else:
+        fallback_to_profile = True
+        prompt = f"""
+پروفایل کاربر:
+{json.dumps(profile, ensure_ascii=False)}
+
+پیام کاربر:
+{user_message}
+
+هیچ محصول مرتبطی در دیتابیس موجود نیست.
+لطفاً بر اساس مشخصات پوست و اطلاعات عمومی، توصیه‌هایی بده.
+"""
+
+    # --- فراخوانی مدل ---
+    try:
+        model_to_use = MODEL
+        resp = client.chat.completions.create(
+            model=model_to_use,
+            messages=[
+                {"role": "system", "content": "تو یک مشاور حرفه‌ای پوست هستی."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.5
+        )
+        answer = resp.choices[0].message.content.strip()
+
+        # --- لاگ ---
+        log = {
+            "used_products": [p["nameFa"] for p in summaries if any(c["product_id"] == str(p["id"]) for c in comments)],
+            "fallback_to_profile": fallback_to_profile,
+            "user_message": user_message,
+            "profile": profile
+        }
+
+        return answer, log
+
+    except Exception as e:
+        raise RuntimeError("خطا در recommend: " + str(e)) from e
