@@ -4,6 +4,9 @@ from pathlib import Path
 import pandas as pd
 from openai import OpenAI
 from dotenv import load_dotenv, find_dotenv
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel, Field
+from typing import Optional, Any, Dict, List
 
 # --- Load ENV (robust) ---
 # Try to locate .env relative to this file to avoid CWD issues
@@ -54,10 +57,22 @@ def load_data():
     return products, comments
 
 # --- Read user profile from Excel ---
+_PROFILE_CACHE: Dict[str, Any] = {}
+def _load_profiles_df():
+    if "df" not in _PROFILE_CACHE:
+        _PROFILE_CACHE["df"] = pd.read_excel("data/shenakht_poosti.xlsx")
+    return _PROFILE_CACHE["df"]
+
 def load_profile(row_index=0):
-    df = pd.read_excel("data/shenakht_poosti.xlsx")
-    row = df.iloc[row_index].to_dict()
-    return row
+    df = _load_profiles_df()
+    if row_index < 0 or row_index >= len(df):
+        raise IndexError("profile index out of range")
+    return df.iloc[row_index].to_dict()
+
+def load_all_profiles(limit: Optional[int] = None) -> List[Dict[str, Any]]:
+    df = _load_profiles_df()
+    rows = df.to_dict(orient="records")
+    return rows if limit is None else rows[:limit]
 
 # --- Summarize comments ---
 def summarize_comments(product_id, comments):
@@ -124,7 +139,7 @@ def recommend(profile, user_message, max_count=5):
             else:
                 # اگر کامنت نبود، خلاصه‌ای کوتاه از محصول بساز (مثلاً نام + نوع محصول)
                 s = f"محصول بدون نظر ثبت شده، نام: {p.get('nameFa', p.get('nameEn',''))}"
-            summaries.append({"id": p["id"], "name": p["nameFa"], "summary": s})
+            summaries.append({"id": p["id"], "name": p.get('nameFa', p.get('nameEn', '')) , "summary": s})
     else:
         fallback_to_profile = True
 
@@ -172,13 +187,79 @@ def recommend(profile, user_message, max_count=5):
 
         # --- لاگ ---
         log = {
-            "used_products": [p["nameFa"] for p in summaries if any(c["product_id"] == str(p["id"]) for c in comments)],
+            "used_products": [p.get("name", p.get("nameFa", "")) for p in summaries if any(c["product_id"] == str(p["id"]) for c in comments)],
             "fallback_to_profile": fallback_to_profile,
             "user_message": user_message,
             "profile": profile
         }
-
         return answer, log
-
     except Exception as e:
         raise RuntimeError("خطا در recommend: " + str(e)) from e
+
+# ================= FastAPI =================
+app = FastAPI(title="ZiboChat Recommender", version="0.1.0")
+
+class ChatRequest(BaseModel):
+    profile_id: Optional[int] = Field(None, description="Index of profile row in Excel")
+    profile: Optional[Dict[str, Any]] = Field(None, description="Explicit profile payload; overrides profile_id if set")
+    message: str = Field(..., description="User message")
+    max_products: int = Field(5, ge=1, le=20)
+
+class ChatResponse(BaseModel):
+    answer: str
+    model: str
+    used_profile: Dict[str, Any]
+    used_products: List[str] = []
+    fallback_to_profile: bool
+
+@app.get("/health")
+def health():
+    return {"status": "ok", "model": MODEL}
+
+@app.get("/profiles")
+def list_profiles(limit: int | None = None):
+    try:
+        items = load_all_profiles(limit=limit)
+        return {"count": len(items), "items": items}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/profiles/{profile_id}")
+def get_profile(profile_id: int):
+    try:
+        return load_profile(profile_id)
+    except IndexError:
+        raise HTTPException(status_code=404, detail="profile not found")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/chat", response_model=ChatResponse)
+def chat(req: ChatRequest):
+    if not req.profile and req.profile_id is None:
+        raise HTTPException(status_code=400, detail="profile or profile_id required")
+    try:
+        prof = req.profile if req.profile is not None else load_profile(req.profile_id)  # type: ignore
+        answer, log = recommend(prof, req.message, max_count=req.max_products)
+        return ChatResponse(
+            answer=answer,
+            model=MODEL,
+            used_profile=prof,
+            used_products=log.get("used_products", []),
+            fallback_to_profile=log.get("fallback_to_profile", False)
+        )
+    except IndexError:
+        raise HTTPException(status_code=404, detail="profile not found")
+    except RuntimeError as e:
+        raise HTTPException(status_code=502, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/models")
+def models():
+    try:
+        data = client.models.list()
+        return {"models": [m.id for m in data.data]}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Run with: uvicorn recommender:app --reload
