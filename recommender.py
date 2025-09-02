@@ -4,7 +4,9 @@ from pathlib import Path
 import pandas as pd
 from openai import OpenAI
 from dotenv import load_dotenv, find_dotenv
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form
+from fastapi.responses import StreamingResponse
+import io
 from pydantic import BaseModel, Field
 from typing import Optional, Any, Dict, List
 
@@ -43,6 +45,17 @@ client = OpenAI(
 # Run the check once when module loads (can be disabled by env flag)
 if os.getenv("DEBUG_AI", "0") == "1":
     _debug_check_models(client)
+
+# Optional LangChain/FAISS integration helper
+USE_LANGCHAIN = os.getenv("USE_LANGCHAIN", "0") in ("1", "true", "True")
+llm_agent = None
+if USE_LANGCHAIN:
+    try:
+        # local helper module that wraps langchain/FAISS usage (optional)
+        import llm_agent as _llm_agent
+        llm_agent = _llm_agent
+    except Exception as e:
+        print(f"WARNING: USE_LANGCHAIN is set but failed to import llm_agent: {e}")
 
 # --- Load data ---
 def load_data():
@@ -93,6 +106,19 @@ def summarize_comments(product_id, comments):
     نظرات:
     {joined}
     """
+    # If optional langchain agent is available, prefer it (it can use FAISS retrieval)
+    if llm_agent is not None:
+        try:
+            return llm_agent.chat_with_context(
+                messages=[
+                    {"role": "system", "content": "خلاصه‌ای کوتاه درباره نظرات محصول به فارسی؛ فقط نکات مهم."},
+                    {"role": "user", "content": prompt},
+                ],
+                model=MODEL,
+            )
+        except Exception as e:
+            print(f"llm_agent.chat_with_context failed, falling back to direct client: {e}")
+
     try:
         model_to_use = MODEL
         if os.getenv("DEBUG_AI", "0") == "1":
@@ -175,15 +201,29 @@ def recommend(profile, user_message, max_count=5):
     # --- فراخوانی مدل ---
     try:
         model_to_use = MODEL
-        resp = client.chat.completions.create(
-            model=model_to_use,
-            messages=[
-                {"role": "system", "content": "تو یک مشاور حرفه‌ای پوست هستی."},
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0.5
-        )
-        answer = resp.choices[0].message.content.strip()
+        # If llm_agent available, use it to allow vector retrieval
+        if llm_agent is not None:
+            try:
+                answer = llm_agent.chat_with_context(
+                    messages=[
+                        {"role": "system", "content": "تو یک مشاور حرفه‌ای پوست هستی."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    model=model_to_use,
+                )
+            except Exception as e:
+                print(f"llm_agent.chat_with_context failed, falling back to direct client: {e}")
+                answer = ""
+        else:
+            resp = client.chat.completions.create(
+                model=model_to_use,
+                messages=[
+                    {"role": "system", "content": "تو یک مشاور حرفه‌ای پوست هستی."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.5
+            )
+            answer = resp.choices[0].message.content.strip()
 
         # --- لاگ ---
         log = {
@@ -196,70 +236,3 @@ def recommend(profile, user_message, max_count=5):
     except Exception as e:
         raise RuntimeError("خطا در recommend: " + str(e)) from e
 
-# ================= FastAPI =================
-app = FastAPI(title="ZiboChat Recommender", version="0.1.0")
-
-class ChatRequest(BaseModel):
-    profile_id: Optional[int] = Field(None, description="Index of profile row in Excel")
-    profile: Optional[Dict[str, Any]] = Field(None, description="Explicit profile payload; overrides profile_id if set")
-    message: str = Field(..., description="User message")
-    max_products: int = Field(5, ge=1, le=20)
-
-class ChatResponse(BaseModel):
-    answer: str
-    model: str
-    used_profile: Dict[str, Any]
-    used_products: List[str] = []
-    fallback_to_profile: bool
-
-@app.get("/health")
-def health():
-    return {"status": "ok", "model": MODEL}
-
-@app.get("/profiles")
-def list_profiles(limit: int | None = None):
-    try:
-        items = load_all_profiles(limit=limit)
-        return {"count": len(items), "items": items}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.get("/profiles/{profile_id}")
-def get_profile(profile_id: int):
-    try:
-        return load_profile(profile_id)
-    except IndexError:
-        raise HTTPException(status_code=404, detail="profile not found")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.post("/chat", response_model=ChatResponse)
-def chat(req: ChatRequest):
-    if not req.profile and req.profile_id is None:
-        raise HTTPException(status_code=400, detail="profile or profile_id required")
-    try:
-        prof = req.profile if req.profile is not None else load_profile(req.profile_id)  # type: ignore
-        answer, log = recommend(prof, req.message, max_count=req.max_products)
-        return ChatResponse(
-            answer=answer,
-            model=MODEL,
-            used_profile=prof,
-            used_products=log.get("used_products", []),
-            fallback_to_profile=log.get("fallback_to_profile", False)
-        )
-    except IndexError:
-        raise HTTPException(status_code=404, detail="profile not found")
-    except RuntimeError as e:
-        raise HTTPException(status_code=502, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.get("/models")
-def models():
-    try:
-        data = client.models.list()
-        return {"models": [m.id for m in data.data]}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-# Run with: uvicorn recommender:app --reload

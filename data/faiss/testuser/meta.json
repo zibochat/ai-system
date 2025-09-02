@@ -1,0 +1,8 @@
+{
+  "t1": {
+    "text": "this is a test memory about likes: user likes roses",
+    "meta": {
+      "type": "chat_fact"
+    }
+  }
+}
