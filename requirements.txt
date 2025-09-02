@@ -5,7 +5,7 @@ openpyxl
 fastapi
 uvicorn
 pytest
-# optional for LangChain/FAISS
 langchain
 faiss-cpu
 sentence-transformers
+streamlit
