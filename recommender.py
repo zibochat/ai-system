@@ -9,6 +9,8 @@ from fastapi.responses import StreamingResponse
 import io
 from pydantic import BaseModel, Field
 from typing import Optional, Any, Dict, List
+import logging
+import traceback
 
 # --- Load ENV (robust) ---
 # Try to locate .env relative to this file to avoid CWD issues
@@ -41,6 +43,18 @@ client = OpenAI(
     base_url=BASE_URL.rstrip("/") if BASE_URL else None,
     default_headers=extra_headers if extra_headers else None
 )
+
+# logging
+LOG_DIR = BASE_DIR / "logs"
+LOG_DIR.mkdir(parents=True, exist_ok=True)
+LOG_FILE = LOG_DIR / "zibochat.log"
+logger = logging.getLogger("zibochat.recommender")
+if not logger.handlers:
+    fh = logging.FileHandler(LOG_FILE, encoding="utf-8")
+    fmt = logging.Formatter("%(asctime)s %(levelname)s %(message)s")
+    fh.setFormatter(fmt)
+    logger.addHandler(fh)
+    logger.setLevel(logging.DEBUG)
 
 # Run the check once when module loads (can be disabled by env flag)
 if os.getenv("DEBUG_AI", "0") == "1":
@@ -138,7 +152,8 @@ def summarize_comments(product_id, comments):
             hints.append("هدر x-teamid باید ست شود (الان: %s)." % (TEAM_ID or "None"))
         if "model" in msg.lower():
             hints.append("لیست مدل‌ها را با فعال کردن DEBUG_AI=1 ببین.")
-        raise RuntimeError("خطا در summarize_comments: " + msg + "\nراهنما: " + " | ".join(hints)) from e
+    logger.exception('summarize_comments failed: %s', msg)
+    raise RuntimeError("خطا در summarize_comments: " + msg + "\nراهنما: " + " | ".join(hints)) from e
 
 # --- Recommend routine ---
 def recommend(profile, user_message, max_count=5):
@@ -234,5 +249,6 @@ def recommend(profile, user_message, max_count=5):
         }
         return answer, log
     except Exception as e:
+        logger.exception('recommend failed: %s', e)
         raise RuntimeError("خطا در recommend: " + str(e)) from e
 

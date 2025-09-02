@@ -1,0 +1,184 @@
+2025-09-02 12:58:44,092 ERROR Chat failed
+Traceback (most recent call last):
+  File "/Users/khaneapple/Documents/freelance/zibochat/.venv/lib/python3.13/site-packages/httpx/_transports/default.py", line 101, in map_httpcore_exceptions
+    yield
+  File "/Users/khaneapple/Documents/freelance/zibochat/.venv/lib/python3.13/site-packages/httpx/_transports/default.py", line 250, in handle_request
+    resp = self._pool.handle_request(req)
+  File "/Users/khaneapple/Documents/freelance/zibochat/.venv/lib/python3.13/site-packages/httpcore/_sync/connection_pool.py", line 256, in handle_request
+    raise exc from None
+  File "/Users/khaneapple/Documents/freelance/zibochat/.venv/lib/python3.13/site-packages/httpcore/_sync/connection_pool.py", line 236, in handle_request
+    response = connection.handle_request(
+        pool_request.request
+    )
+  File "/Users/khaneapple/Documents/freelance/zibochat/.venv/lib/python3.13/site-packages/httpcore/_sync/http_proxy.py", line 316, in handle_request
+    stream = stream.start_tls(**kwargs)
+  File "/Users/khaneapple/Documents/freelance/zibochat/.venv/lib/python3.13/site-packages/httpcore/_sync/http11.py", line 376, in start_tls
+    return self._stream.start_tls(ssl_context, server_hostname, timeout)
+           ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/khaneapple/Documents/freelance/zibochat/.venv/lib/python3.13/site-packages/httpcore/_backends/sync.py", line 154, in start_tls
+    with map_exceptions(exc_map):
+         ~~~~~~~~~~~~~~^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.13/3.13.4/Frameworks/Python.framework/Versions/3.13/lib/python3.13/contextlib.py", line 162, in __exit__
+    self.gen.throw(value)
+    ~~~~~~~~~~~~~~^^^^^^^
+  File "/Users/khaneapple/Documents/freelance/zibochat/.venv/lib/python3.13/site-packages/httpcore/_exceptions.py", line 14, in map_exceptions
+    raise to_exc(exc) from exc
+httpcore.ConnectError: [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1028)
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/khaneapple/Documents/freelance/zibochat/.venv/lib/python3.13/site-packages/openai/_base_client.py", line 982, in request
+    response = self._client.send(
+        request,
+        stream=stream or self._should_stream_response_body(request=request),
+        **kwargs,
+    )
+  File "/Users/khaneapple/Documents/freelance/zibochat/.venv/lib/python3.13/site-packages/httpx/_client.py", line 914, in send
+    response = self._send_handling_auth(
+        request,
+    ...<2 lines>...
+        history=[],
+    )
+  File "/Users/khaneapple/Documents/freelance/zibochat/.venv/lib/python3.13/site-packages/httpx/_client.py", line 942, in _send_handling_auth
+    response = self._send_handling_redirects(
+        request,
+        follow_redirects=follow_redirects,
+        history=history,
+    )
+  File "/Users/khaneapple/Documents/freelance/zibochat/.venv/lib/python3.13/site-packages/httpx/_client.py", line 979, in _send_handling_redirects
+    response = self._send_single_request(request)
+  File "/Users/khaneapple/Documents/freelance/zibochat/.venv/lib/python3.13/site-packages/httpx/_client.py", line 1014, in _send_single_request
+    response = transport.handle_request(request)
+  File "/Users/khaneapple/Documents/freelance/zibochat/.venv/lib/python3.13/site-packages/httpx/_transports/default.py", line 249, in handle_request
+    with map_httpcore_exceptions():
+         ~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/opt/homebrew/Cellar/python@3.13/3.13.4/Frameworks/Python.framework/Versions/3.13/lib/python3.13/contextlib.py", line 162, in __exit__
+    self.gen.throw(value)
+    ~~~~~~~~~~~~~~^^^^^^^
+  File "/Users/khaneapple/Documents/freelance/zibochat/.venv/lib/python3.13/site-packages/httpx/_transports/default.py", line 118, in map_httpcore_exceptions
+    raise mapped_exc(message) from exc
+httpx.ConnectError: [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1028)
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/khaneapple/Documents/freelance/zibochat/streamlit_app.py", line 73, in <module>
+    resp = llm_agent.chat_with_context(messages=[{'role':'user','content':user_msg}], model=MODEL, user_id=user_id, client=client)
+  File "/Users/khaneapple/Documents/freelance/zibochat/llm_agent.py", line 250, in chat_with_context
+    resp = client.chat.completions.create(
+        model=model_to_use,
+        messages=[{"role": m.get("role"), "content": m.get("content")} for m in messages],
+        temperature=temperature,
+    )
+  File "/Users/khaneapple/Documents/freelance/zibochat/.venv/lib/python3.13/site-packages/openai/_utils/_utils.py", line 287, in wrapper
+    return func(*args, **kwargs)
+  File "/Users/khaneapple/Documents/freelance/zibochat/.venv/lib/python3.13/site-packages/openai/resources/chat/completions/completions.py", line 1147, in create
+    return self._post(
+           ~~~~~~~~~~^
+        "/chat/completions",
+        ^^^^^^^^^^^^^^^^^^^^
+    ...<46 lines>...
+        stream_cls=Stream[ChatCompletionChunk],
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/khaneapple/Documents/freelance/zibochat/.venv/lib/python3.13/site-packages/openai/_base_client.py", line 1259, in post
+    return cast(ResponseT, self.request(cast_to, opts, stream=stream, stream_cls=stream_cls))
+                           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/khaneapple/Documents/freelance/zibochat/.venv/lib/python3.13/site-packages/openai/_base_client.py", line 1014, in request
+    raise APIConnectionError(request=request) from err
+openai.APIConnectionError: Connection error.
+2025-09-02 12:59:01,491 ERROR Fact extraction failed
+Traceback (most recent call last):
+  File "/Users/khaneapple/Documents/freelance/zibochat/.venv/lib/python3.13/site-packages/httpx/_transports/default.py", line 101, in map_httpcore_exceptions
+    yield
+  File "/Users/khaneapple/Documents/freelance/zibochat/.venv/lib/python3.13/site-packages/httpx/_transports/default.py", line 250, in handle_request
+    resp = self._pool.handle_request(req)
+  File "/Users/khaneapple/Documents/freelance/zibochat/.venv/lib/python3.13/site-packages/httpcore/_sync/connection_pool.py", line 256, in handle_request
+    raise exc from None
+  File "/Users/khaneapple/Documents/freelance/zibochat/.venv/lib/python3.13/site-packages/httpcore/_sync/connection_pool.py", line 236, in handle_request
+    response = connection.handle_request(
+        pool_request.request
+    )
+  File "/Users/khaneapple/Documents/freelance/zibochat/.venv/lib/python3.13/site-packages/httpcore/_sync/http_proxy.py", line 316, in handle_request
+    stream = stream.start_tls(**kwargs)
+  File "/Users/khaneapple/Documents/freelance/zibochat/.venv/lib/python3.13/site-packages/httpcore/_sync/http11.py", line 376, in start_tls
+    return self._stream.start_tls(ssl_context, server_hostname, timeout)
+           ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/khaneapple/Documents/freelance/zibochat/.venv/lib/python3.13/site-packages/httpcore/_backends/sync.py", line 154, in start_tls
+    with map_exceptions(exc_map):
+         ~~~~~~~~~~~~~~^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.13/3.13.4/Frameworks/Python.framework/Versions/3.13/lib/python3.13/contextlib.py", line 162, in __exit__
+    self.gen.throw(value)
+    ~~~~~~~~~~~~~~^^^^^^^
+  File "/Users/khaneapple/Documents/freelance/zibochat/.venv/lib/python3.13/site-packages/httpcore/_exceptions.py", line 14, in map_exceptions
+    raise to_exc(exc) from exc
+httpcore.ConnectError: [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1028)
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/khaneapple/Documents/freelance/zibochat/.venv/lib/python3.13/site-packages/openai/_base_client.py", line 982, in request
+    response = self._client.send(
+        request,
+        stream=stream or self._should_stream_response_body(request=request),
+        **kwargs,
+    )
+  File "/Users/khaneapple/Documents/freelance/zibochat/.venv/lib/python3.13/site-packages/httpx/_client.py", line 914, in send
+    response = self._send_handling_auth(
+        request,
+    ...<2 lines>...
+        history=[],
+    )
+  File "/Users/khaneapple/Documents/freelance/zibochat/.venv/lib/python3.13/site-packages/httpx/_client.py", line 942, in _send_handling_auth
+    response = self._send_handling_redirects(
+        request,
+        follow_redirects=follow_redirects,
+        history=history,
+    )
+  File "/Users/khaneapple/Documents/freelance/zibochat/.venv/lib/python3.13/site-packages/httpx/_client.py", line 979, in _send_handling_redirects
+    response = self._send_single_request(request)
+  File "/Users/khaneapple/Documents/freelance/zibochat/.venv/lib/python3.13/site-packages/httpx/_client.py", line 1014, in _send_single_request
+    response = transport.handle_request(request)
+  File "/Users/khaneapple/Documents/freelance/zibochat/.venv/lib/python3.13/site-packages/httpx/_transports/default.py", line 249, in handle_request
+    with map_httpcore_exceptions():
+         ~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/opt/homebrew/Cellar/python@3.13/3.13.4/Frameworks/Python.framework/Versions/3.13/lib/python3.13/contextlib.py", line 162, in __exit__
+    self.gen.throw(value)
+    ~~~~~~~~~~~~~~^^^^^^^
+  File "/Users/khaneapple/Documents/freelance/zibochat/.venv/lib/python3.13/site-packages/httpx/_transports/default.py", line 118, in map_httpcore_exceptions
+    raise mapped_exc(message) from exc
+httpx.ConnectError: [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1028)
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/khaneapple/Documents/freelance/zibochat/streamlit_app.py", line 84, in <module>
+    facts = llm_agent.extract_and_store_chat_facts(user_id, user_msg, client=client)
+  File "/Users/khaneapple/Documents/freelance/zibochat/llm_agent.py", line 165, in extract_and_store_chat_facts
+    resp = chat_with_context(messages=[{"role": "user", "content": prompt}], model=model or os.getenv("OPENAI_MODEL"), user_id=user_id, client=client)
+  File "/Users/khaneapple/Documents/freelance/zibochat/llm_agent.py", line 250, in chat_with_context
+    resp = client.chat.completions.create(
+        model=model_to_use,
+        messages=[{"role": m.get("role"), "content": m.get("content")} for m in messages],
+        temperature=temperature,
+    )
+  File "/Users/khaneapple/Documents/freelance/zibochat/.venv/lib/python3.13/site-packages/openai/_utils/_utils.py", line 287, in wrapper
+    return func(*args, **kwargs)
+  File "/Users/khaneapple/Documents/freelance/zibochat/.venv/lib/python3.13/site-packages/openai/resources/chat/completions/completions.py", line 1147, in create
+    return self._post(
+           ~~~~~~~~~~^
+        "/chat/completions",
+        ^^^^^^^^^^^^^^^^^^^^
+    ...<46 lines>...
+        stream_cls=Stream[ChatCompletionChunk],
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/khaneapple/Documents/freelance/zibochat/.venv/lib/python3.13/site-packages/openai/_base_client.py", line 1259, in post
+    return cast(ResponseT, self.request(cast_to, opts, stream=stream, stream_cls=stream_cls))
+                           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/khaneapple/Documents/freelance/zibochat/.venv/lib/python3.13/site-packages/openai/_base_client.py", line 1014, in request
+    raise APIConnectionError(request=request) from err
+openai.APIConnectionError: Connection error.
