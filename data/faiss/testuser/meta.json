@@ -4,5 +4,17 @@
     "meta": {
       "type": "chat_fact"
     }
+  },
+  "chat_snippet_1756899514": {
+    "text": "سلام\n",
+    "meta": {
+      "type": "conversation_snippet"
+    }
+  },
+  "chat_snippet_1756899562": {
+    "text": "سلام\n",
+    "meta": {
+      "type": "conversation_snippet"
+    }
   }
 }

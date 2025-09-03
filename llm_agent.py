@@ -104,10 +104,24 @@ def load_user_index(user_id: str, embeddings_model: Optional[str] = None):
     embedder = _build_embedder(embeddings_model)
     try:
         from langchain.vectorstores import FAISS
-        store = FAISS.load_local(str(d), embedder)
+        # The FAISS loader may deserialize pickle files. These indexes were created locally by this application,
+        # so allow dangerous deserialization for trusted local data so loading succeeds. Ensure files are trusted.
+        store = FAISS.load_local(str(d), embedder, allow_dangerous_deserialization=True)
         return store
-    except Exception:
-        return None
+    except Exception as e:
+        # surface full traceback to a logfile for diagnosis instead of silently returning None
+        try:
+            import traceback
+            logdir = Path("logs")
+            logdir.mkdir(parents=True, exist_ok=True)
+            with open(logdir / "zibochat_faiss_load_error.log", "a", encoding="utf-8") as f:
+                f.write("--- FAISS load error for user_id=%s ---\n" % user_id)
+                traceback.print_exc(file=f)
+                f.write("\n")
+        except Exception:
+            pass
+        # re-raise so callers and tests see the underlying error
+        raise
 
 
 def retrieve_user_memory(user_id: str, query: str, k: int = 6, embeddings_model: Optional[str] = None) -> List[Dict[str, Any]]:
@@ -215,6 +229,45 @@ def chat_with_context(messages: List[Dict[str, Any]], model: Optional[str] = Non
     """
     model_to_use = model or os.getenv("OPENAI_MODEL")
 
+    # validate model against the server-supported list when we have a client
+    def _validate_model_for_client(client_obj, preferred: str | None) -> Optional[str]:
+        if client_obj is None or preferred is None:
+            return preferred
+        try:
+            # get available models from the server
+            models = client_obj.models.list()
+            avail = [getattr(m, "id", None) for m in getattr(models, "data", [])]
+            avail = [a for a in avail if a]
+            # exact match
+            if preferred in avail:
+                return preferred
+            # try matching by suffix (model name without provider prefix)
+            pref_name = preferred.split('/')[-1]
+            for a in avail:
+                if a.split('/')[-1] == pref_name:
+                    return a
+            # try a small prioritized fallback list
+            preferred_fallbacks = [
+                "openai/gpt-4o-mini",
+                "openai/gpt-4.1",
+                "openai/gpt-4.1-mini",
+                "openai/gpt-5-mini",
+                "openai/gpt-5-chat",
+            ]
+            for cand in preferred_fallbacks:
+                if cand in avail:
+                    return cand
+            # otherwise return first available model
+            if avail:
+                return avail[0]
+        except Exception:
+            # if listing models fails, don't block; return the preferred
+            return preferred
+        return preferred
+
+    if client is not None:
+        model_to_use = _validate_model_for_client(client, model_to_use)
+
     # if user memory exists, retrieve and prepend
     if user_id and _langchain_available():
         mem = retrieve_user_memory(user_id, " ", k=6)  # fallback query: return important docs
@@ -254,4 +307,28 @@ def chat_with_context(messages: List[Dict[str, Any]], model: Optional[str] = Non
         )
         return resp.choices[0].message.content.strip()
     except Exception as e:
-        raise
+        # Attempt a direct HTTP fallback using httpx when the OpenAI SDK fails (network/proxy issues)
+        try:
+            import httpx
+            # read sanitized envs (may be set by recommender)
+            base = os.getenv("OPENAI_BASE_URL")
+            api_key = os.getenv("OPENAI_API_KEY")
+            if not base or not api_key:
+                raise RuntimeError("Fallback unavailable: OPENAI_BASE_URL or OPENAI_API_KEY not set in environment")
+            url = base.rstrip("/") + "/chat/completions"
+            headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+            payload = {
+                "model": model_to_use,
+                "messages": [{"role": m.get("role"), "content": m.get("content")} for m in messages],
+                "temperature": temperature,
+            }
+            # avoid using environment proxies
+            with httpx.Client(trust_env=False, verify=True, timeout=30) as c:
+                r = c.post(url, json=payload, headers=headers)
+            if r.status_code >= 400:
+                raise RuntimeError(f"HTTP fallback failed: {r.status_code} {r.text}")
+            data = r.json()
+            return data["choices"][0]["message"]["content"].strip()
+        except Exception as e2:
+            # surface both errors for debugging
+            raise RuntimeError(f"chat failed: sdk_error={e} ; fallback_error={e2}") from e2

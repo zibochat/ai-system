@@ -115,6 +115,31 @@ def load_all_profiles(limit: Optional[int] = None) -> List[Dict[str, Any]]:
     rows = df.to_dict(orient="records")
     return rows if limit is None else rows[:limit]
 
+
+def index_products_to_faiss(user_index_id: str = "products_index", embeddings_model: Optional[str] = None, force: bool = False):
+    """Create/persist a FAISS index containing one document per product that includes product metadata and concatenated comments.
+    Uses the optional llm_agent.upsert_user_docs helper (requires LangChain/faiss installed)."""
+    # import llm_agent dynamically to avoid relying on module-level variable set at import time
+    try:
+        import llm_agent as _llm_agent
+    except Exception:
+        raise RuntimeError("LangChain/llm_agent not available. Enable USE_LANGCHAIN or install langchain and faiss-cpu.")
+
+    products, comments = load_data()
+    docs = []
+    for p in products:
+        pid = str(p.get("id"))
+        name = p.get("nameFa") or p.get("nameEn") or p.get("name") or ""
+        desc = p.get("description", "") or ""
+        related = [c for c in comments if c.get("product_id") == pid]
+        joined_comments = "\n".join([f"- {c.get('description','')[:1000]}" for c in related])
+        text = f"Product: {name}\nID: {pid}\nDescription:\n{desc}\n\nComments:\n{joined_comments}"
+        docs.append({"id": f"product_{pid}", "text": text, "meta": {"type": "product", "product_id": pid, "name": name}})
+
+    # upsert into per-index user_id
+    _llm_agent.upsert_user_docs(user_index_id, docs, embeddings_model=embeddings_model)
+    return len(docs)
+
 # --- Summarize comments ---
 def summarize_comments(product_id, comments):
     related = [c for c in comments if c["product_id"] == str(product_id)]
@@ -173,16 +198,54 @@ def summarize_comments(product_id, comments):
 # --- Recommend routine ---
 def recommend(profile, user_message, max_count=5):
     products, comments = load_data()
+    # --- تعیین وضعیت موجودی (اگر در داده‌ها وجود داشته باشد) ---
+    def _is_available(prod: dict) -> Optional[bool]:
+        # try common inventory fields; return None if unknown
+        for k in ("in_stock", "is_available", "available", "stock", "quantity", "qty"):
+            v = prod.get(k)
+            if v is None:
+                continue
+            # numeric counts
+            try:
+                if isinstance(v, (int, float)):
+                    return bool(v)
+                s = str(v).strip()
+                if s == "":
+                    continue
+                if s.isdigit():
+                    return int(s) > 0
+                if s.lower() in ("true", "yes", "1"): 
+                    return True
+                if s.lower() in ("false", "no", "0"):
+                    return False
+            except Exception:
+                continue
+        return None
 
-    # --- جدا کردن محصولات با کامنت و بدون کامنت ---
-    products_with_comments = [p for p in products if any(c["product_id"] == str(p["id"]) for c in comments)]
-    products_without_comments = [p for p in products if p not in products_with_comments]
+    # mark each product with has_comments and availability (if detectable)
+    for p in products:
+        p["_has_comments"] = any(c["product_id"] == str(p["id"]) for c in comments)
+        p["_available"] = _is_available(p)
 
-    # --- انتخاب کاندیدها با اولویت محصولات با کامنت ---
-    candidates = products_with_comments[:max_count]
-    if len(candidates) < max_count:
-        remaining = max_count - len(candidates)
-        candidates += products_without_comments[:remaining]
+    # --- مرتب‌سازی کاندیدها بر اساس اولویت:
+    # 1) محصولات دارای کامنت (اولویت بالا)
+    # 2) محصولات موجود (در صورت قابل‌تشخیص بودن موجودی)
+    # در صورت عدم وجود اطلاعات موجودی، محصولات را به عنوان 'مشخص‌نشده' در نظر می‌گیریم و آن‌ها را پایین‌تر از موارد مشخص‌شده موجود قرار می‌دهیم.
+    def _sort_key(prod: dict):
+        # has_comments True first -> sort by 1/0
+        has_comments = 1 if prod.get("_has_comments") else 0
+        avail = prod.get("_available")
+        # availability: True > None > False
+        if avail is True:
+            a_score = 2
+        elif avail is None:
+            a_score = 1
+        else:
+            a_score = 0
+        return (has_comments, a_score)
+
+    products_sorted = sorted(products, key=_sort_key, reverse=True)
+    candidates = products_sorted[:max_count]
 
     summaries = []
     fallback_to_profile = False
