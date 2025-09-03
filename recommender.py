@@ -16,11 +16,20 @@ import traceback
 # Try to locate .env relative to this file to avoid CWD issues
 BASE_DIR = Path(__file__).resolve().parent
 env_file = find_dotenv(usecwd=True) or str(BASE_DIR / ".env")
+# Load .env and sanitize
 load_dotenv(env_file, override=True)
 
-API_KEY = os.getenv("OPENAI_API_KEY")
-BASE_URL = os.getenv("OPENAI_BASE_URL")
-TEAM_ID = os.getenv("LIARA_TEAM_ID") or os.getenv("TEAM_ID") or os.getenv("LIARA_TEAM")
+def _strip_env(v: str | None) -> str | None:
+    if v is None:
+        return None
+    v = v.strip()
+    if (v.startswith('"') and v.endswith('"')) or (v.startswith("'") and v.endswith("'")):
+        return v[1:-1]
+    return v
+
+API_KEY = _strip_env(os.getenv("OPENAI_API_KEY"))
+BASE_URL = _strip_env(os.getenv("OPENAI_BASE_URL"))
+#TEAM_ID = os.getenv("LIARA_TEAM_ID") or os.getenv("TEAM_ID") or os.getenv("LIARA_TEAM")
 MODEL = os.getenv("OPENAI_MODEL", "openai/gpt-4o-mini")
 
 if not API_KEY:
@@ -35,9 +44,14 @@ def _debug_check_models(client):
         print("[DEBUG] list models failed:", repr(e))
 
 extra_headers = {}
-if TEAM_ID:
-    extra_headers["x-teamid"] = TEAM_ID
+# if TEAM_ID:
+#     extra_headers["x-teamid"] = TEAM_ID
 
+# Clear common proxy env vars to avoid httpx picking up a proxy and causing TLS/proxy errors
+for k in ("http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "all_proxy"):
+    os.environ.pop(k, None)
+
+# Create OpenAI client after sanitization
 client = OpenAI(
     api_key=API_KEY,
     base_url=BASE_URL.rstrip("/") if BASE_URL else None,
@@ -136,7 +150,7 @@ def summarize_comments(product_id, comments):
     try:
         model_to_use = MODEL
         if os.getenv("DEBUG_AI", "0") == "1":
-            print(f"[DEBUG] summarize using model: {model_to_use} base_url={BASE_URL} team={TEAM_ID}")
+            print(f"[DEBUG] summarize using model: {model_to_use} base_url={BASE_URL} t")
         resp = client.chat.completions.create(
             model=model_to_use,
             messages=[{"role": "user", "content": prompt}],
@@ -149,7 +163,8 @@ def summarize_comments(product_id, comments):
         hints = []
         if "404" in msg or "workspace" in msg.lower():
             hints.append("بررسی کن Base URL دقیقاً همان مقدار مستند لیارا باشد (با workspace id).")
-            hints.append("هدر x-teamid باید ست شود (الان: %s)." % (TEAM_ID or "None"))
+            team = os.getenv("LIARA_TEAM_ID") or os.getenv("TEAM_ID") or os.getenv("LIARA_TEAM")
+            hints.append("هدر x-teamid باید ست شود (الان: %s)." % (team or "None"))
         if "model" in msg.lower():
             hints.append("لیست مدل‌ها را با فعال کردن DEBUG_AI=1 ببین.")
     logger.exception('summarize_comments failed: %s', msg)
