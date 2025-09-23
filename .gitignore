@@ -1,25 +1,46 @@
-# Python
-__pycache__/
-*.py[cod]
-*.pyo
-*.pyd
-*.so
-
-# Virtual env
-.venv/
-env/
-venv/
-
-# Jupyter
-.ipynb_checkpoints/
-
 # OS
 .DS_Store
 
-# Env / Secrets
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+.venv/
+venv/
+.python-version
+.pytest_cache/
+.mypy_cache/
+
+# Env
 .env
 .env.*
 !.env.example
 
-# Data (adjust if needed)
-*.xlsx
+# Logs
+logs/*
+!logs/.gitkeep
+*.log
+
+# Data caches / indices
+data/faiss/**
+*.faiss
+*.pkl
+*.pickle
+*.cache/
+
+# Notebooks and checkpoints
+*.ipynb_checkpoints/
+
+# Editors/IDE
+.vscode/
+.idea/
+
+# Backups
+*.backup
+*.bak
+*~
+
+# Streamlit
+.streamlit/
