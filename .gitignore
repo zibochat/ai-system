@@ -32,6 +32,7 @@ data/faiss/**
 
 # Notebooks and checkpoints
 *.ipynb_checkpoints/
+*.ipynb
 
 # Editors/IDE
 .vscode/
