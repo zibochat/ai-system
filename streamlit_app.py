@@ -245,7 +245,7 @@ if btn_send and user_input.strip():
             if log.get('recommended_products'):
                 st.markdown('**محصولات پیشنهاد شده:**')
                 for p in log['recommended_products']:
-                    st.write(f"• {p.get('full_name', p.get('name',''))} (ID: {p.get('id')})")
+                    st.write(f"• {p.get('fullName', p.get('full_name', p.get('name','')))} (ID: {p.get('id')})")
         elif log.get('llm_unavailable'):
             st.warning('سرویس تولید پاسخ موقتاً در دسترس نیست. لطفاً بعداً مجدداً تلاش کنید.')
     except Exception as e:

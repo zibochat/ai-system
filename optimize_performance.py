@@ -48,7 +48,7 @@ class PerformanceOptimizer:
         
         for product in products:
             product_id = str(product.get("id"))
-            name = product.get("full_name") or product.get("nameFa") or product.get("nameEn") or ""
+            name = product.get("fullName") or product.get("full_name") or product.get("nameFa") or product.get("nameEn") or ""
             desc = product.get("description", "")
             
             # پیدا کردن نظرات مرتبط

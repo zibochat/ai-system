@@ -214,7 +214,7 @@ def index_products_to_faiss(user_index_id: str = "products_index", embeddings_mo
     docs = []
     for p in products:
         pid = str(p.get("id"))
-        name = p.get("full_name") or p.get("nameFa") or p.get("nameEn") or p.get("name") or ""
+        name = p.get("fullName") or p.get("full_name") or p.get("nameFa") or p.get("nameEn") or p.get("name") or ""
         desc = p.get("description", "") or ""
         category = p.get("category") or p.get("type") or ""
         tags = p.get("tags") or []
@@ -478,7 +478,7 @@ def recommend(profile, user_message, max_count=5, user_id: Optional[str] = None)
     user_intent = _detect_intent(user_message)
 
     def _matches_intent(prod: dict, text: str, intent: Optional[str]) -> bool:
-        name = ((prod.get("full_name") or "") + " " + (prod.get("nameFa") or "") + " " + (prod.get("nameEn") or "") + " " + (prod.get("name") or "")).lower()
+        name = ((prod.get("fullName") or prod.get("full_name") or "") + " " + (prod.get("nameFa") or "") + " " + (prod.get("nameEn") or "") + " " + (prod.get("name") or "")).lower()
         desc = str(prod.get("description") or "").lower()
         full = name + " " + desc
         # include category/type/tags if available for richer matching
@@ -554,7 +554,7 @@ def recommend(profile, user_message, max_count=5, user_id: Optional[str] = None)
     if not intent_products:
         # rank by number of comments (desc) and prefer face-oriented based on simple heuristics
         def _is_face(prod: dict) -> bool:
-            text = (str(prod.get('full_name') or '') + ' ' + str(prod.get('nameFa') or '') + ' ' + str(prod.get('nameEn') or '') + ' ' + str(prod.get('description') or '')).lower()
+            text = (str(prod.get('fullName') or prod.get('full_name') or '') + ' ' + str(prod.get('nameFa') or '') + ' ' + str(prod.get('nameEn') or '') + ' ' + str(prod.get('description') or '')).lower()
             return any(w in text for w in ['صورت', 'face', 'facial', 'کرم', 'cream']) and not any(w in text for w in ['بدن', 'body', 'لوسیون بدن', 'body lotion'])
         # precompute comment counts
         pid_to_count = {}
@@ -601,10 +601,10 @@ def recommend(profile, user_message, max_count=5, user_id: Optional[str] = None)
             if summary_source in ("faiss_index", "comments"):
                 s = summarize_comments(p["id"], comments)
             else:
-                s = f"محصول بدون نظر ثبت‌شده، نام: {p.get('full_name', p.get('nameFa', p.get('nameEn', p.get('name',''))))}"
+                s = f"محصول بدون نظر ثبت‌شده، نام: {p.get('fullName', p.get('full_name', p.get('nameFa', p.get('nameEn', p.get('name','')))))}"
             summaries.append({
                 "id": p["id"],
-                "name": (p.get('full_name') or p.get('nameFa') or p.get('nameEn') or p.get('name') or ""),
+                "name": (p.get('fullName') or p.get('full_name') or p.get('nameFa') or p.get('nameEn') or p.get('name') or ""),
                 "summary": s,
                 "summary_source": summary_source
             })
