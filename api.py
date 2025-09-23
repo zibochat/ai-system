@@ -64,12 +64,15 @@ class UserProfile(BaseModel):
 
 class ChatMessage(BaseModel):
     user_id: str
-    chat_room_id: Optional[str] = "default"  # پشتیبانی از chat rooms
+    # chat_id جدید؛ chat_room_id برای سازگاری عقب‌رو
+    chat_id: Optional[str] = None
+    chat_room_id: Optional[str] = "default"
     message: str
     timestamp: Optional[str] = None
 
 class ChatResponse(BaseModel):
     user_id: str
+    chat_id: str
     chat_room_id: str
     response: str
     recommended_products: Optional[List[Dict[str, Any]]] = None
@@ -81,6 +84,7 @@ class ChatResponse(BaseModel):
 
 class ConversationHistory(BaseModel):
     user_id: str
+    chat_id: str
     chat_room_id: str
     messages: List[Dict[str, Any]]
     total_count: int
@@ -90,13 +94,14 @@ class ConversationHistory(BaseModel):
 _profile_cache: Dict[str, UserProfile] = {}
 _conversation_cache: Dict[str, List[Dict[str, Any]]] = {}
 
-def get_conversation_key(user_id: str, chat_room_id: str = "default") -> str:
-    """کلید یکتا برای مکالمه"""
-    return f"{user_id}:{chat_room_id}"
+def get_conversation_key(user_id: str, chat_id: Optional[str] = None, chat_room_id: str = "default") -> str:
+    """کلید یکتا برای مکالمه (ترجیح chat_id)."""
+    cid = chat_id or chat_room_id or "default"
+    return f"{user_id}:{cid}"
 
-def get_or_create_conversation(user_id: str, chat_room_id: str = "default") -> List[Dict[str, Any]]:
-    """دریافت یا ایجاد مکالمه"""
-    key = get_conversation_key(user_id, chat_room_id)
+def get_or_create_conversation(user_id: str, chat_id: Optional[str] = None, chat_room_id: str = "default") -> List[Dict[str, Any]]:
+    """دریافت یا ایجاد مکالمه با chat_id."""
+    key = get_conversation_key(user_id, chat_id=chat_id, chat_room_id=chat_room_id)
     if key not in _conversation_cache:
         _conversation_cache[key] = []
     return _conversation_cache[key]
@@ -205,20 +210,21 @@ async def chat_with_user(chat_message: ChatMessage, background_tasks: Background
     """ارسال پیام و دریافت پاسخ"""
     try:
         user_id = chat_message.user_id
-        chat_room_id = chat_message.chat_room_id or "default"
+        chat_id = chat_message.chat_id or chat_message.chat_room_id or "default"
+        chat_room_id = chat_message.chat_room_id or chat_id or "default"
         message = chat_message.message.strip()
         
         if not message:
             raise HTTPException(status_code=400, detail="پیام نمی‌تواند خالی باشد")
         
-        logger.info(f"Chat request: user_id={user_id}, chat_room_id={chat_room_id}, message='{message[:100]}'")
+        logger.info(f"Chat request: user_id={user_id}, chat_id={chat_id}, chat_room_id={chat_room_id}, message='{message[:100]}'")
         
         # دریافت پروفایل کاربر
         profile_data = await get_user_profile(user_id)
         profile_dict = profile_data.dict() if hasattr(profile_data, 'dict') else profile_data
         
         # دریافت مکالمه جاری
-        conversation = get_or_create_conversation(user_id, chat_room_id)
+        conversation = get_or_create_conversation(user_id, chat_id=chat_id, chat_room_id=chat_room_id)
         
         # اضافه کردن پیام کاربر به مکالمه
         user_msg = {
@@ -256,6 +262,7 @@ async def chat_with_user(chat_message: ChatMessage, background_tasks: Background
             # آماده‌سازی پاسخ
             response = ChatResponse(
                 user_id=user_id,
+                chat_id=chat_id,
                 chat_room_id=chat_room_id,
                 response=answer,
                 recommended_products=log.get("recommended_products", []),
@@ -275,6 +282,7 @@ async def chat_with_user(chat_message: ChatMessage, background_tasks: Background
             # پاسخ خطا
             error_response = ChatResponse(
                 user_id=user_id,
+                chat_id=chat_id,
                 chat_room_id=chat_room_id,
                 response="متأسفانه خطایی در تولید پاسخ رخ داد. لطفاً دوباره تلاش کنید.",
                 timestamp=datetime.now().isoformat(),
@@ -291,16 +299,17 @@ async def chat_with_user(chat_message: ChatMessage, background_tasks: Background
         raise HTTPException(status_code=500, detail=f"خطای غیرمنتظره: {str(e)}")
 
 @app.get("/api/v1/conversation/{user_id}")
-async def get_conversation_history(user_id: str, chat_room_id: str = "default", limit: int = 50):
+async def get_conversation_history(user_id: str, chat_id: Optional[str] = None, chat_room_id: str = "default", limit: int = 50):
     """دریافت تاریخچه مکالمه"""
     try:
-        conversation = get_or_create_conversation(user_id, chat_room_id)
+        conversation = get_or_create_conversation(user_id, chat_id=chat_id, chat_room_id=chat_room_id)
         
         # محدود کردن تعداد پیام‌ها
         recent_messages = conversation[-limit:] if limit > 0 else conversation
         
         return ConversationHistory(
             user_id=user_id,
+            chat_id=chat_id or chat_room_id or "default",
             chat_room_id=chat_room_id,
             messages=recent_messages,
             total_count=len(conversation)
@@ -311,15 +320,15 @@ async def get_conversation_history(user_id: str, chat_room_id: str = "default", 
         raise HTTPException(status_code=500, detail=f"خطا در دریافت تاریخچه مکالمه: {str(e)}")
 
 @app.delete("/api/v1/conversation/{user_id}")
-async def clear_conversation_history(user_id: str, chat_room_id: str = "default"):
+async def clear_conversation_history(user_id: str, chat_id: Optional[str] = None, chat_room_id: str = "default"):
     """پاک کردن تاریخچه مکالمه"""
     try:
-        key = get_conversation_key(user_id, chat_room_id)
+        key = get_conversation_key(user_id, chat_id=chat_id, chat_room_id=chat_room_id)
         if key in _conversation_cache:
             del _conversation_cache[key]
         
-        logger.info(f"Conversation cleared for user_id={user_id}, chat_room_id={chat_room_id}")
-        return {"message": "تاریخچه مکالمه پاک شد", "user_id": user_id, "chat_room_id": chat_room_id}
+        logger.info(f"Conversation cleared for user_id={user_id}, chat_id={chat_id}, chat_room_id={chat_room_id}")
+        return {"message": "تاریخچه مکالمه پاک شد", "user_id": user_id, "chat_id": chat_id or chat_room_id or "default", "chat_room_id": chat_room_id}
         
     except Exception as e:
         logger.error(f"Error clearing conversation for user_id={user_id}: {e}")
