@@ -1,0 +1,30 @@
+# ZiboChat Production Requirements
+# Core dependencies
+openai>=1.0.0
+python-dotenv>=1.0.0
+pandas>=2.0.0
+openpyxl>=3.1.0
+
+# FastAPI and server
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+pydantic>=2.0.0
+
+# AI and ML
+langchain>=0.1.0
+langchain-openai>=0.0.5
+langchain-community>=0.0.10
+faiss-cpu>=1.7.4
+sentence-transformers>=2.2.0
+
+# HTTP client
+httpx>=0.25.0
+
+# Development and testing
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+
+# Optional: for better performance
+redis>=5.0.0  # برای cache کردن
+gunicorn>=21.0.0  # WSGI server
+
