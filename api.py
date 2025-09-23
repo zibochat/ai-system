@@ -41,7 +41,7 @@ if not logger.handlers:
 # --- FastAPI App ---
 app = FastAPI(
     title="ZiboChat API",
-    description="API برای سیستم چت و توصیه محصولات زیبایی",
+    description="API for ZiboChat - Production Ready",
     version="1.0.0"
 )
 
