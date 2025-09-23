@@ -19,8 +19,10 @@ from pydantic import BaseModel, Field
 import uvicorn
 
 # Import modules
-from recommender import client, MODEL, load_profile, load_all_profiles, recommend, index_products_to_faiss
-from llm_agent import get_user_memory, save_conversation_interaction, get_conversation_context
+from recommender import client, MODEL, load_profile, load_all_profiles
+from chat.service import chat_one_turn
+from memory.service import get_memory_snapshot
+from recommender_engine.service import index_products as re_index_products
 
 # --- Logging Setup ---
 BASE_DIR = Path(__file__).resolve().parent
@@ -236,11 +238,12 @@ async def chat_with_user(chat_message: ChatMessage, background_tasks: Background
         
         # تولید پاسخ
         try:
-            answer, log = recommend(
+            answer, log = chat_one_turn(
+                user_id=user_id,
+                chat_id=chat_id,
+                message=message,
                 profile=profile_dict,
-                user_message=message,
                 max_count=5,
-                user_id=user_id
             )
             
             # اضافه کردن پاسخ به مکالمه
@@ -252,12 +255,7 @@ async def chat_with_user(chat_message: ChatMessage, background_tasks: Background
             conversation.append(bot_msg)
             
             # ذخیره تعامل در حافظه (background task)
-            background_tasks.add_task(
-                save_conversation_interaction,
-                user_id=user_id,
-                user_input=message,
-                bot_response=answer
-            )
+            # interaction persisted inside chat_one_turn
             
             # آماده‌سازی پاسخ
             response = ChatResponse(
@@ -338,16 +336,8 @@ async def clear_conversation_history(user_id: str, chat_id: Optional[str] = None
 async def get_user_memory_summary(user_id: str):
     """دریافت خلاصه حافظه کاربر"""
     try:
-        user_memory = get_user_memory(user_id)
-        memory_summary = user_memory.get_memory_summary()
-        recent_context = user_memory.get_recent_context(num_messages=5)
-        
-        return {
-            "user_id": user_id,
-            "memory_summary": memory_summary,
-            "recent_context": recent_context,
-            "timestamp": datetime.now().isoformat()
-        }
+        snap = get_memory_snapshot(user_id)
+        return {"user_id": user_id, "memory_summary": snap.get("summary"), "recent_context": snap.get("recent_context"), "timestamp": datetime.now().isoformat()}
         
     except Exception as e:
         logger.error(f"Error getting memory for user_id={user_id}: {e}")
@@ -357,7 +347,7 @@ async def get_user_memory_summary(user_id: str):
 async def index_products():
     """ایندکس کردن محصولات به FAISS (admin endpoint)"""
     try:
-        count = index_products_to_faiss('products_index')
+        count = re_index_products()
         logger.info(f"Products indexed: {count}")
         return {"message": f"{count} محصول ایندکس شد", "count": count}
         
