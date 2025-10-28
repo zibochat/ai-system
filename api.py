@@ -403,7 +403,7 @@ async def startup_event():
 if __name__ == "__main__":
     # تنظیمات سرور
     host = os.getenv("HOST", "0.0.0.0")
-    port = int(os.getenv("PORT", 8000))
+    port = int(os.getenv("PORT", 8001))
     workers = int(os.getenv("WORKERS", 1))
     
     logger.info(f"Starting ZiboChat API on {host}:{port}")
