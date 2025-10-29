@@ -1,0 +1,332 @@
+{
+  "curl_tests": {
+    "description": "ZiboChat API - Comprehensive Curl Tests",
+    "base_url": "http://localhost:8000",
+    "api_base": "http://localhost:8000/api/v1",
+    "tests": {
+      "health_checks": [
+        {
+          "name": "Root Health Check",
+          "method": "GET",
+          "url": "/",
+          "expected_status": 200,
+          "description": "Basic health check endpoint"
+        },
+        {
+          "name": "Detailed Health Check",
+          "method": "GET", 
+          "url": "/health",
+          "expected_status": 200,
+          "description": "Detailed health check with OpenAI connection status"
+        }
+      ],
+      "user_profiles": [
+        {
+          "name": "Get User Profile",
+          "method": "GET",
+          "url": "/api/v1/profile/user_123",
+          "expected_status": 200,
+          "description": "Retrieve user profile by ID"
+        },
+        {
+          "name": "Get Numeric Profile",
+          "method": "GET",
+          "url": "/api/v1/profile/1",
+          "expected_status": 200,
+          "description": "Retrieve profile with numeric user ID"
+        },
+        {
+          "name": "Update User Profile",
+          "method": "POST",
+          "url": "/api/v1/profile/user_123",
+          "expected_status": 200,
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "body": {
+            "user_id": "user_123",
+            "skin_type": "oily",
+            "age": 25,
+            "skin_concerns": ["acne", "dark_spots"],
+            "preferences": {
+              "brand": "loreal",
+              "price_range": "medium"
+            }
+          },
+          "description": "Update user profile with new data"
+        }
+      ],
+      "chat_endpoints": [
+        {
+          "name": "Send Chat Message",
+          "method": "POST",
+          "url": "/api/v1/chat",
+          "expected_status": 200,
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "body": {
+            "user_id": "user_123",
+            "chat_id": "chat_456",
+            "message": "سلام، من پوست چرب دارم و دنبال کرم ضد آفتاب هستم"
+          },
+          "description": "Send a chat message and get AI response"
+        },
+        {
+          "name": "Chat with Room ID",
+          "method": "POST",
+          "url": "/api/v1/chat",
+          "expected_status": 200,
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "body": {
+            "user_id": "user_123",
+            "chat_room_id": "room_789",
+            "message": "کدام محصولات برای پوست حساس مناسب هستند؟"
+          },
+          "description": "Send chat message using chat_room_id for backward compatibility"
+        },
+        {
+          "name": "Default Chat",
+          "method": "POST",
+          "url": "/api/v1/chat",
+          "expected_status": 200,
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "body": {
+            "user_id": "user_123",
+            "message": "لطفاً محصولات ضد پیری معرفی کنید"
+          },
+          "description": "Send chat message without chat_id (uses default)"
+        }
+      ],
+      "conversation_history": [
+        {
+          "name": "Get Conversation History",
+          "method": "GET",
+          "url": "/api/v1/conversation/user_123?chat_id=chat_456&limit=10",
+          "expected_status": 200,
+          "description": "Retrieve conversation history with chat_id"
+        },
+        {
+          "name": "Get History with Room ID",
+          "method": "GET",
+          "url": "/api/v1/conversation/user_123?chat_room_id=room_789&limit=5",
+          "expected_status": 200,
+          "description": "Retrieve conversation history with chat_room_id"
+        },
+        {
+          "name": "Get Default History",
+          "method": "GET",
+          "url": "/api/v1/conversation/user_123?limit=20",
+          "expected_status": 200,
+          "description": "Retrieve conversation history without chat_id"
+        },
+        {
+          "name": "Clear Conversation",
+          "method": "DELETE",
+          "url": "/api/v1/conversation/user_123?chat_id=chat_456",
+          "expected_status": 200,
+          "description": "Clear conversation history"
+        },
+        {
+          "name": "Clear Room Conversation",
+          "method": "DELETE",
+          "url": "/api/v1/conversation/user_123?chat_room_id=room_789",
+          "expected_status": 200,
+          "description": "Clear conversation history by room_id"
+        }
+      ],
+      "memory_endpoints": [
+        {
+          "name": "Get Memory Summary",
+          "method": "GET",
+          "url": "/api/v1/memory/user_123",
+          "expected_status": 200,
+          "description": "Get user memory summary and recent context"
+        }
+      ],
+      "admin_endpoints": [
+        {
+          "name": "Index Products",
+          "method": "POST",
+          "url": "/api/v1/admin/index-products",
+          "expected_status": 200,
+          "description": "Index products to FAISS vector database"
+        }
+      ],
+      "stats_endpoints": [
+        {
+          "name": "Get System Stats",
+          "method": "GET",
+          "url": "/api/v1/stats",
+          "expected_status": 200,
+          "description": "Get system statistics and cache information"
+        }
+      ],
+      "error_handling": [
+        {
+          "name": "Invalid Endpoint",
+          "method": "GET",
+          "url": "/api/v1/invalid-endpoint",
+          "expected_status": 404,
+          "description": "Test 404 error handling"
+        },
+        {
+          "name": "Empty Message",
+          "method": "POST",
+          "url": "/api/v1/chat",
+          "expected_status": 400,
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "body": {
+            "user_id": "user_123",
+            "message": ""
+          },
+          "description": "Test empty message validation"
+        },
+        {
+          "name": "Invalid JSON",
+          "method": "POST",
+          "url": "/api/v1/chat",
+          "expected_status": 422,
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "body": "{\"user_id\": \"user_123\", \"message\": \"test\"",
+          "description": "Test malformed JSON handling"
+        }
+      ],
+      "advanced_scenarios": [
+        {
+          "name": "Multiple Messages Same Chat",
+          "method": "POST",
+          "url": "/api/v1/chat",
+          "expected_status": 200,
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "body": {
+            "user_id": "user_123",
+            "chat_id": "chat_advanced",
+            "message": "من پوست خشک دارم"
+          },
+          "description": "Test multiple messages in same chat session"
+        },
+        {
+          "name": "Different User Different Chat",
+          "method": "POST",
+          "url": "/api/v1/chat",
+          "expected_status": 200,
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "body": {
+            "user_id": "user_456",
+            "chat_id": "chat_different",
+            "message": "کدام شامپو برای موهای چرب مناسب است؟"
+          },
+          "description": "Test different users with different chats"
+        },
+        {
+          "name": "Long Message",
+          "method": "POST",
+          "url": "/api/v1/chat",
+          "expected_status": 200,
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "body": {
+            "user_id": "user_123",
+            "message": "سلام، من یک خانم ۳۰ ساله هستم و پوست ترکیبی دارم. در ناحیه T-zone چرب و در بقیه جاها خشک است. اخیراً متوجه شدم که لکه‌های تیره روی پیشانی‌ام ایجاد شده و همچنین چند جوش کوچک روی چانه‌ام دارم. می‌خواهم یک روتین کامل مراقبت از پوست برای صبح و شب داشته باشم. بودجه من متوسط است و ترجیح می‌دهم از برندهای ایرانی استفاده کنم. لطفاً محصولات مناسب را معرفی کنید."
+          },
+          "description": "Test handling of long, detailed messages"
+        }
+      ],
+      "edge_cases": [
+        {
+          "name": "Special Characters in User ID",
+          "method": "GET",
+          "url": "/api/v1/profile/user-123_test",
+          "expected_status": 200,
+          "description": "Test user ID with special characters"
+        },
+        {
+          "name": "Unicode Characters",
+          "method": "POST",
+          "url": "/api/v1/chat",
+          "expected_status": 200,
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "body": {
+            "user_id": "user_123",
+            "message": "سلام! من دنبال محصولات مراقبت از پوست هستم. 🧴✨"
+          },
+          "description": "Test Unicode characters in messages"
+        },
+        {
+          "name": "Very Long User ID",
+          "method": "GET",
+          "url": "/api/v1/profile/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "expected_status": 200,
+          "description": "Test very long user ID handling"
+        },
+        {
+          "name": "Large Limit Parameter",
+          "method": "GET",
+          "url": "/api/v1/conversation/user_123?limit=1000",
+          "expected_status": 200,
+          "description": "Test large limit parameter"
+        }
+      ],
+      "api_documentation": [
+        {
+          "name": "OpenAPI Documentation",
+          "method": "GET",
+          "url": "/docs",
+          "expected_status": 200,
+          "description": "Access Swagger UI documentation"
+        },
+        {
+          "name": "OpenAPI JSON Schema",
+          "method": "GET",
+          "url": "/openapi.json",
+          "expected_status": 200,
+          "description": "Get OpenAPI JSON schema"
+        }
+      ]
+    },
+    "sample_curl_commands": {
+      "health_check": "curl http://localhost:8000/health",
+      "get_profile": "curl http://localhost:8000/api/v1/profile/user_123",
+      "update_profile": "curl -X POST http://localhost:8000/api/v1/profile/user_123 -H 'Content-Type: application/json' -d '{\"user_id\": \"user_123\", \"skin_type\": \"oily\", \"age\": 25}'",
+      "send_message": "curl -X POST http://localhost:8000/api/v1/chat -H 'Content-Type: application/json' -d '{\"user_id\": \"user_123\", \"message\": \"سلام\"}'",
+      "get_conversation": "curl http://localhost:8000/api/v1/conversation/user_123?chat_id=chat_456",
+      "clear_conversation": "curl -X DELETE http://localhost:8000/api/v1/conversation/user_123?chat_id=chat_456",
+      "get_memory": "curl http://localhost:8000/api/v1/memory/user_123",
+      "index_products": "curl -X POST http://localhost:8000/api/v1/admin/index-products",
+      "get_stats": "curl http://localhost:8000/api/v1/stats"
+    },
+    "usage_instructions": {
+      "prerequisites": [
+        "Ensure the API server is running on localhost:8000",
+        "Run: python run_api.py",
+        "Or: uvicorn api:app --host 0.0.0.0 --port 8000"
+      ],
+      "running_tests": [
+        "Make the script executable: chmod +x curl_tests.sh",
+        "Run all tests: ./curl_tests.sh",
+        "Run individual tests using the sample curl commands"
+      ],
+      "customization": [
+        "Change BASE_URL variable in curl_tests.sh for different host/port",
+        "Modify test data in the JSON body sections",
+        "Add new test cases following the existing patterns"
+      ]
+    }
+  }
+}
